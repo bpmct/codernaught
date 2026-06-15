@@ -14288,16 +14288,21 @@ var Ld = new URL("./codernaught.glb", "" + import.meta.url).href, Rd = class ext
 			n.setSize(e, t, !1), i.aspect = e / t, i.updateProjectionMatrix();
 		};
 		new ResizeObserver(c).observe(this), c();
-		let l = this.hasAttribute("walk"), u = (parseFloat(this.getAttribute("spin")) || 35) * Math.PI / 180, d, f, p = 0, m = new Ko();
+		let l = this.hasAttribute("walk"), u = this.hasAttribute("spin"), d = (parseFloat(this.getAttribute("spin")) || 35) * Math.PI / 180, f, p, m = 0, h = new Ko();
 		new gu().load(this.getAttribute("src") || Ld, (e) => {
-			f = e.scene, r.add(f), l && e.animations.length && (d = new Go(f), d.clipAction(e.animations[0]).play());
+			p = e.scene, r.add(p), l && e.animations.length && (f = new Go(p), f.clipAction(e.animations[0]).play());
 		});
-		let h = () => {
-			requestAnimationFrame(h);
-			let e = Math.min(m.getDelta(), .05);
-			d && d.update(e), f && (l ? (p += u * e, f.rotation.y = p) : (p += (0 - p) * Math.min(e * 3, 1), f.rotation.y = p)), a.update(), n.render(r, i);
+		let g = () => {
+			requestAnimationFrame(g);
+			let e = Math.min(h.getDelta(), .05);
+			if (f && f.update(e), p) if (l && u) m += d * e, p.rotation.y = m;
+			else if (l) {
+				let t = h.elapsedTime;
+				m += (Math.sin(t * .5) * .25 - m) * Math.min(e * 3, 1), p.rotation.y = m;
+			} else m += (0 - m) * Math.min(e * 3, 1), p.rotation.y = m;
+			a.update(), n.render(r, i);
 		};
-		h();
+		g();
 	}
 };
 customElements.define("codernaught-bot", Rd);

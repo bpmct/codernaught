@@ -6,6 +6,7 @@ const ui = {
   render: 'flat',   // 'flat' | 'lit'
   shadows: false,
   walk: true,
+  spin: false,
   speed: 5.0,
   light: 0.55,      // master light multiplier (lit mode)
 };
@@ -184,6 +185,7 @@ const $ = id => document.getElementById(id);
 $('renderMode').value = ui.render;
 $('shadows').checked = ui.shadows;
 $('walk').checked = ui.walk;
+if ($('spin')) $('spin').checked = ui.spin;
 $('speed').value = ui.speed; $('speedVal').textContent = ui.speed.toFixed(1);
 $('light').value = ui.light; $('lightVal').textContent = ui.light.toFixed(2);
 $('shadows').disabled = ui.render !== 'lit';
@@ -197,6 +199,7 @@ $('renderMode').addEventListener('change', e => {
 });
 $('shadows').addEventListener('change', e => { ui.shadows = e.target.checked; applyShadows(); });
 $('walk').addEventListener('change', e => { ui.walk = e.target.checked; });
+$('spin').addEventListener('change', e => { ui.spin = e.target.checked; });
 $('speed').addEventListener('input', e => { ui.speed = parseFloat(e.target.value); $('speedVal').textContent = ui.speed.toFixed(1); });
 $('light').addEventListener('input', e => { ui.light = parseFloat(e.target.value); $('lightVal').textContent = ui.light.toFixed(2); applyLight(); });
 
@@ -243,9 +246,14 @@ function animate() {
     legLeft.rotation.x  = -s * 0.5 + tuck * 0.5;
     armRight.rotation.x = -s * 0.35 - tuck * 0.6;
     armLeft.rotation.x  =  s * 0.35 - tuck * 0.6;
-    // solid body rotation: slowly turn so you see the walk in 3D (full spin)
-    yaw += dt * 0.6;
-    robot.rotation.y = yaw;
+    if (ui.spin) {
+      yaw += dt * 0.6;                       // optional turntable
+      robot.rotation.y = yaw;
+    } else {
+      // walk in place, facing you, with a subtle look-around
+      yaw += (Math.sin(t * 0.5) * 0.25 - yaw) * Math.min(dt * 3, 1);
+      robot.rotation.y = yaw;
+    }
     robot.position.y = Math.abs(s) * 0.6 + jumpY;
     robot.rotation.z = s * 0.03;
   } else {

@@ -9,8 +9,8 @@
  *
  * Attributes:
  *   src        URL to codernaught.glb (default: alongside this script)
- *   walk       present = play the walk animation + spin; absent = idle, facing front
- *   spin       degrees/sec turntable while walking (default 35)
+ *   walk       present = walk animation, facing forward; absent = idle facing front
+ *   spin       present = turntable spin while walking (optional deg/sec, default 35)
  *   bg         background CSS color (default transparent)
  *   no-controls present = disable orbit/zoom
  */
@@ -55,7 +55,8 @@ class CodernaughtBot extends HTMLElement {
     resize();
 
     const walk = this.hasAttribute('walk');
-    const spin = (parseFloat(this.getAttribute('spin')) || 35) * Math.PI / 180;
+    const doSpin = this.hasAttribute('spin');
+    const spinRate = (parseFloat(this.getAttribute('spin')) || 35) * Math.PI / 180;
     let mixer, model, yaw = 0;
     const clock = new THREE.Clock();
 
@@ -73,7 +74,8 @@ class CodernaughtBot extends HTMLElement {
       const dt = Math.min(clock.getDelta(), 0.05);
       if (mixer) mixer.update(dt);
       if (model) {
-        if (walk) { yaw += spin * dt; model.rotation.y = yaw; }
+        if (walk && doSpin) { yaw += spinRate * dt; model.rotation.y = yaw; }
+        else if (walk) { const t = clock.elapsedTime; yaw += (Math.sin(t*0.5)*0.25 - yaw) * Math.min(dt*3,1); model.rotation.y = yaw; }
         else { yaw += (0 - yaw) * Math.min(dt * 3, 1); model.rotation.y = yaw; }
       }
       controls.update();
