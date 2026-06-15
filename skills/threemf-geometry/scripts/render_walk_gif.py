@@ -46,13 +46,19 @@ def Ry(a):
     c,s=math.cos(a),math.sin(a); return np.array([[c,0,s],[0,1,0],[-s,0,c]])
 
 W, H = 360, 560
+SS = 3                  # supersample factor (kills jaggies / white fringe)
 SCALE = 11.0           # px per model unit
 LIGHT = np.array([-0.4, 0.7, 0.6]); LIGHT /= np.linalg.norm(LIGHT)
 CAMTILT = Rx(math.radians(-8))
 
 def render_frame(phase, yaw):
-    img = Image.new('RGBA', (W, H), (0,0,0,0))
-    dr = ImageDraw.Draw(img, 'RGBA')
+    # Render solid (opaque) on an RGB canvas at SS resolution, tracking a coverage
+    # mask. Then build alpha from coverage and downsample -> clean AA, no white halo.
+    Ws, Hs = W*SS, H*SS
+    rgb = Image.new('RGB', (Ws, Hs), (0, 0, 0))
+    cov = Image.new('L', (Ws, Hs), 0)
+    drc = ImageDraw.Draw(rgb)
+    drm = ImageDraw.Draw(cov)
     s = math.sin(phase)
     limbrot = {
         'leg_right': Rx(s*0.5), 'leg_left': Rx(-s*0.5),
@@ -63,7 +69,6 @@ def render_frame(phase, yaw):
     faces = []
     for g, piv, V, tris, col in prep:
         Rl = limbrot.get(g, np.eye(3))
-        # world = body * (limbrot*V + piv) ; then camera tilt
         W3 = (V @ Rl.T + piv) @ body.T
         W3 = W3 @ CAMTILT.T
         W3[:,1] += bob
@@ -73,16 +78,22 @@ def render_frame(phase, yaw):
             nn = np.linalg.norm(n)
             if nn < 1e-9: continue
             n /= nn
-            if n[2] <= 0: continue                     # backface cull (camera looks -Z)
+            if n[2] <= 0: continue
             shade = 0.55 + 0.45 * max(0, n @ LIGHT)
             c = tuple(int(min(255, x*shade)) for x in col)
             zmean = p[:,2].mean()
-            pts = [(W/2 + q[0]*SCALE, H*0.92 - (q[1])*SCALE) for q in p]
+            pts = [((Ws/2 + q[0]*SCALE*SS), (Hs*0.92 - q[1]*SCALE*SS)) for q in p]
             faces.append((zmean, pts, c))
-    faces.sort(key=lambda f: f[0])                     # painter's: far first
+    faces.sort(key=lambda f: f[0])
     for _, pts, c in faces:
-        dr.polygon(pts, fill=c + (255,))
-    return img
+        drc.polygon(pts, fill=c)
+        drm.polygon(pts, fill=255)
+    # downsample with box filter -> AA color + AA coverage(alpha)
+    rgb = rgb.resize((W, H), Image.LANCZOS)
+    cov = cov.resize((W, H), Image.LANCZOS)
+    out = rgb.convert('RGBA')
+    out.putalpha(cov)
+    return out
 
 frames = []
 N = 30
@@ -93,11 +104,15 @@ for i in range(N):
     frames.append(render_frame(ph, yaw))
 
 def to_p_transparent(rgba):
-    # quantize RGB to 255 colors, reserve index 255 for transparency
+    # Matte semi-transparent edge pixels onto the robot body gray so the GIF's
+    # 1-bit transparency edge blends into the bot, never to white.
+    MATTE = (210, 206, 207)            # ~ suit gray, matches the model edges
     a = rgba.split()[3]
-    p = rgba.convert('RGB').quantize(colors=255, method=Image.MEDIANCUT)
-    # mark transparent where alpha < 128
-    mask = a.point(lambda v: 255 if v < 128 else 0)
+    bg = Image.new('RGB', rgba.size, MATTE)
+    comp = Image.composite(rgba.convert('RGB'), bg, a.point(lambda v: 255 if v >= 96 else 0))
+    p = comp.quantize(colors=255, method=Image.MEDIANCUT)
+    # transparent only where essentially no coverage (alpha < 24)
+    mask = a.point(lambda v: 255 if v < 24 else 0)
     p.paste(255, mask.convert('1'))
     p.info['transparency'] = 255
     return p
