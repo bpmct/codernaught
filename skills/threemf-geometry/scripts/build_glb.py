@@ -158,8 +158,8 @@ def add_rot_channel(node, amp, phase_shift=0.0):
 
 add_rot_channel(pivot_node['leg_right'],  0.5, 0.0)
 add_rot_channel(pivot_node['leg_left'],   0.5, np.pi)     # opposite phase
-add_rot_channel(pivot_node['arm_right'], 0.35, np.pi)     # counter-swing
-add_rot_channel(pivot_node['arm_left'],  0.35, 0.0)
+add_rot_channel(pivot_node['arm_right'], 0.22, np.pi)     # counter-swing (gentle, stays seated)
+add_rot_channel(pivot_node['arm_left'],  0.22, 0.0)
 
 animations = [{'name': 'Walk', 'channels': channels, 'samplers': samplers}]
 

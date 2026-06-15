@@ -244,8 +244,8 @@ function animate() {
     const s = Math.sin(phase);
     legRight.rotation.x =  s * 0.5 + tuck * 0.5;
     legLeft.rotation.x  = -s * 0.5 + tuck * 0.5;
-    armRight.rotation.x = -s * 0.35 - tuck * 0.6;
-    armLeft.rotation.x  =  s * 0.35 - tuck * 0.6;
+    armRight.rotation.x = -s * 0.22 - tuck * 0.6;
+    armLeft.rotation.x  =  s * 0.22 - tuck * 0.6;
     if (ui.spin) {
       yaw += dt * 0.6;                       // optional turntable
       robot.rotation.y = yaw;

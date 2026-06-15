@@ -62,7 +62,7 @@ def render_frame(phase, yaw):
     s = math.sin(phase)
     limbrot = {
         'leg_right': Rx(s*0.5), 'leg_left': Rx(-s*0.5),
-        'arm_right': Rx(-s*0.35), 'arm_left': Rx(s*0.35), 'torso': np.eye(3),
+        'arm_right': Rx(-s*0.22), 'arm_left': Rx(s*0.22), 'torso': np.eye(3),
     }
     body = Ry(yaw)
     bob = abs(s) * 0.6
