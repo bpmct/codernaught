@@ -1,20 +1,25 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+// ── Live UI state ─────────────────────────────────────────────────────────────
+const ui = {
+  render: 'flat',   // 'flat' | 'lit'
+  shadows: false,
+  walk: true,
+  speed: 5.0,
+};
+
 // ── Renderer ──────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = true;          // toggled live via light/mesh flags
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.3;
 document.body.appendChild(renderer.domElement);
 
 // ── Scene ─────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0d0d14);
-// No fog — it caused the model to fade out when zooming.
 
 const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 12, 55);
@@ -27,32 +32,21 @@ controls.minDistance = 12;
 controls.maxDistance = 300;
 controls.update();
 
-// ── Lighting ──────────────────────────────────────────────────────────────────
-// Hemisphere gives even sky/ground fill so neither side goes fully dark.
-scene.add(new THREE.HemisphereLight(0xdde6ff, 0x202028, 0.9));
-scene.add(new THREE.AmbientLight(0xffffff, 0.25));
-
-const key = new THREE.DirectionalLight(0xfff4e0, 1.5);
+// ── Lights (created once, intensity scaled by render mode) ────────────────────
+const hemi = new THREE.HemisphereLight(0xdde6ff, 0x202028, 0.9);
+const amb  = new THREE.AmbientLight(0xffffff, 0.25);
+const key  = new THREE.DirectionalLight(0xfff4e0, 1.5);
 key.position.set(25, 50, 40);
-key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
-key.shadow.camera.near = 1;
-key.shadow.camera.far = 200;
+key.shadow.camera.near = 1; key.shadow.camera.far = 200;
 key.shadow.camera.top = key.shadow.camera.right = 60;
 key.shadow.camera.bottom = key.shadow.camera.left = -60;
 key.shadow.bias = -0.0005;
-scene.add(key);
+const fill = new THREE.DirectionalLight(0xc8d8ff, 1.1); fill.position.set(-35, 25, 20);
+const rim  = new THREE.DirectionalLight(0x9966ff, 0.6); rim.position.set(0, 10, -45);
+scene.add(hemi, amb, key, fill, rim);
 
-// Strong fill from the opposite side to balance the dark half.
-const fill = new THREE.DirectionalLight(0xc8d8ff, 1.1);
-fill.position.set(-35, 25, 20);
-scene.add(fill);
-
-const rim = new THREE.DirectionalLight(0x9966ff, 0.6);
-rim.position.set(0, 10, -45);
-scene.add(rim);
-
-// Ground
+// Ground + grid (used for shadows / lit look)
 const ground = new THREE.Mesh(
   new THREE.CircleGeometry(120, 64),
   new THREE.MeshStandardMaterial({ color: 0x111118, roughness: 0.95, metalness: 0.1 })
@@ -60,43 +54,38 @@ const ground = new THREE.Mesh(
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
-scene.add(new THREE.GridHelper(120, 60, 0x1e1e2e, 0x181828));
+const grid = new THREE.GridHelper(120, 60, 0x1e1e2e, 0x181828);
+scene.add(grid);
 
-// ── Coordinate remap: 3MF Y-up → Three.js Y-up ───────────────────────────────
-// The model already stands upright along Y in the 3MF. Y stays up.
-// 3MF: X=right, Y=up, Z=depth(thin).  Three.js: X=right, Y=up, Z=depth.
-// Direct mapping (x,y,z) → (x,y,z). No axis swap needed.
-function remap(x, y, z) { return [x, y, z]; }
-
-// ── Material cache ────────────────────────────────────────────────────────────
-const matCache = {};
-function getMat(hex) {
-  if (matCache[hex]) return matCache[hex];
-  matCache[hex] = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(hex),
-    roughness: hex === '#7000F4' ? 0.25 : hex === '#7E7776' ? 0.45 : 0.6,
-    metalness: hex === '#7E7776' ? 0.6  : hex === '#7000F4' ? 0.1  : 0.08,
+// ── Materials: pre-build BOTH flat + lit variants per color, swap at runtime ──
+const flatMat = {}, litMat = {};
+function matFor(hex) {
+  if (ui.render === 'lit') {
+    if (!litMat[hex]) litMat[hex] = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(hex),
+      roughness: hex === '#7000F4' ? 0.25 : hex === '#7E7776' ? 0.45 : 0.6,
+      metalness: hex === '#7E7776' ? 0.6  : hex === '#7000F4' ? 0.1  : 0.08,
+      side: THREE.DoubleSide,
+    });
+    return litMat[hex];
+  }
+  if (!flatMat[hex]) flatMat[hex] = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(hex), side: THREE.DoubleSide,
   });
-  return matCache[hex];
+  return flatMat[hex];
 }
 
-// ── Load data ─────────────────────────────────────────────────────────────────
+// ── Load mesh data ────────────────────────────────────────────────────────────
 const data = await fetch('/codernaught_meshes.json').then(r => r.json());
 const { meshes, pivots, bounds } = data;
 
-// Model height along Y (3MF up axis)
 const modelHeight = bounds.max[1] - bounds.min[1];
 const scale = 22 / modelHeight;
-const cx = (bounds.min[0] + bounds.max[0]) / 2; // horizontal center
-const cyFloor = bounds.min[1];                   // bottom → sits on ground
-const cz = (bounds.min[2] + bounds.max[2]) / 2;  // depth center
+const cx = (bounds.min[0] + bounds.max[0]) / 2;
+const cyFloor = bounds.min[1];
+const cz = (bounds.min[2] + bounds.max[2]) / 2;
+const center = v => [v[0] - cx, v[1] - cyFloor, v[2] - cz];
 
-// Centering helper: shift vertex into robot-local space (feet at y=0, centered)
-function center(v) {
-  return [v[0] - cx, v[1] - cyFloor, v[2] - cz];
-}
-
-// Build a geometry from a list of (already-centered) verts + triangles
 function makeGeo(verts, triangles) {
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(verts.length * 3);
@@ -113,7 +102,7 @@ function makeGeo(verts, triangles) {
   return geo;
 }
 
-// ── Robot hierarchy ───────────────────────────────────────────────────────────
+// ── Hierarchy: torso + 2 arms + 2 legs, each child a pivot group ──────────────
 const robot = new THREE.Group();
 robot.scale.setScalar(scale);
 scene.add(robot);
@@ -121,41 +110,81 @@ scene.add(robot);
 const bodyGroup = new THREE.Group();
 robot.add(bodyGroup);
 
-// Pivot (hinge) groups positioned at the shoulder sockets, in centered robot space
-function shoulderPos(pivot3mf) {
-  const c = center(pivot3mf);
-  return new THREE.Vector3(c[0], c[1], c[2]);
-}
-const rPivotPos = shoulderPos(pivots.arm_right);
-const lPivotPos = shoulderPos(pivots.arm_left);
+const pivotPos = p => { const c = center(p); return new THREE.Vector3(c[0], c[1], c[2]); };
+const rArmPivot = pivotPos(pivots.arm_right);
+const lArmPivot = pivotPos(pivots.arm_left);
+const rLegPivot = pivotPos(pivots.leg_right);
+const lLegPivot = pivotPos(pivots.leg_left);
 
-const armRight = new THREE.Group();
-armRight.position.copy(rPivotPos);
-robot.add(armRight);
+const armRight = new THREE.Group(); armRight.position.copy(rArmPivot); robot.add(armRight);
+const armLeft  = new THREE.Group(); armLeft.position.copy(lArmPivot);  robot.add(armLeft);
+const legRight = new THREE.Group(); legRight.position.copy(rLegPivot); robot.add(legRight);
+const legLeft  = new THREE.Group(); legLeft.position.copy(lLegPivot);  robot.add(legLeft);
 
-const armLeft = new THREE.Group();
-armLeft.position.copy(lPivotPos);
-robot.add(armLeft);
+const TARGET = { body: bodyGroup, arm_right: armRight, arm_left: armLeft, leg_right: legRight, leg_left: legLeft };
+const PIVOT  = { body: new THREE.Vector3(0,0,0), arm_right: rArmPivot, arm_left: lArmPivot, leg_right: rLegPivot, leg_left: lLegPivot };
 
-// Distribute meshes into the correct groups, making arm verts relative to pivot
+const allMeshes = [];
 for (const part of meshes) {
-  const cverts = part.vertices.map(center); // robot-local centered verts
-
-  if (part.group === 'body') {
-    const m = new THREE.Mesh(makeGeo(cverts, part.triangles), getMat(part.color));
-    m.castShadow = true; m.receiveShadow = true;
-    bodyGroup.add(m);
-  } else {
-    const pivot = part.group === 'arm_right' ? rPivotPos : lPivotPos;
-    const localVerts = cverts.map(v => [v[0]-pivot.x, v[1]-pivot.y, v[2]-pivot.z]);
-    const m = new THREE.Mesh(makeGeo(localVerts, part.triangles), getMat(part.color));
-    m.castShadow = true; m.receiveShadow = true;
-    (part.group === 'arm_right' ? armRight : armLeft).add(m);
-  }
+  const cverts = part.vertices.map(center);
+  const piv = PIVOT[part.group] || PIVOT.body;
+  const localVerts = cverts.map(v => [v[0]-piv.x, v[1]-piv.y, v[2]-piv.z]);
+  const m = new THREE.Mesh(makeGeo(localVerts, part.triangles), matFor(part.color));
+  m.userData.hex = part.color;
+  allMeshes.push(m);
+  (TARGET[part.group] || bodyGroup).add(m);
 }
 
-// ── Animation: hinged arm swing ───────────────────────────────────────────────
+// ── Apply render mode (materials + lights + shadows) ──────────────────────────
+function applyRenderMode() {
+  const lit = ui.render === 'lit';
+  for (const m of allMeshes) m.material = matFor(m.userData.hex);
+
+  // Lit lights at full strength; flat mode uses a single bright ambient so colors stay pure.
+  hemi.intensity = lit ? 0.9  : 0.0;
+  key.intensity  = lit ? 1.5  : 0.0;
+  fill.intensity = lit ? 1.1  : 0.0;
+  rim.intensity  = lit ? 0.6  : 0.0;
+  amb.intensity  = lit ? 0.25 : 1.0;   // flat: full flat ambient (MeshBasic ignores it anyway)
+
+  renderer.toneMapping = lit ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+  renderer.toneMappingExposure = 1.3;
+
+  applyShadows();
+  ground.visible = lit;
+  grid.visible = lit;
+}
+
+function applyShadows() {
+  const on = ui.shadows && ui.render === 'lit';
+  key.castShadow = on;
+  ground.receiveShadow = on;
+  for (const m of allMeshes) { m.castShadow = on; m.receiveShadow = on; }
+  renderer.shadowMap.needsUpdate = true;
+}
+
+// ── UI wiring ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+$('renderMode').value = ui.render;
+$('shadows').checked = ui.shadows;
+$('walk').checked = ui.walk;
+$('speed').value = ui.speed; $('speedVal').textContent = ui.speed.toFixed(1);
+$('shadows').disabled = ui.render !== 'lit';
+
+$('renderMode').addEventListener('change', e => {
+  ui.render = e.target.value;
+  $('shadows').disabled = ui.render !== 'lit';
+  applyRenderMode();
+});
+$('shadows').addEventListener('change', e => { ui.shadows = e.target.checked; applyShadows(); });
+$('walk').addEventListener('change', e => { ui.walk = e.target.checked; });
+$('speed').addEventListener('input', e => { ui.speed = parseFloat(e.target.value); $('speedVal').textContent = ui.speed.toFixed(1); });
+
+applyRenderMode();
+
+// ── Animation: idle + walk cycle ──────────────────────────────────────────────
 const clock = new THREE.Clock();
+let phase = 0;
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -165,12 +194,24 @@ window.addEventListener('resize', () => {
 
 function animate() {
   requestAnimationFrame(animate);
-  const t = clock.getElapsedTime();
+  const dt = clock.getDelta();
+  const t = clock.elapsedTime;
 
-  // Arms hinge forward/back around the X axis (the shoulder pivot).
-  const swing = Math.sin(t * 1.4) * 0.12;     // radians (gentle)
-  armRight.rotation.x =  swing;
-  armLeft.rotation.x  = -swing;
+  if (ui.walk) {
+    phase += dt * ui.speed;
+    const s = Math.sin(phase);
+    legRight.rotation.x =  s * 0.5;
+    legLeft.rotation.x  = -s * 0.5;
+    armRight.rotation.x = -s * 0.35;
+    armLeft.rotation.x  =  s * 0.35;
+    robot.position.y = Math.abs(Math.sin(phase)) * 0.6;
+    robot.rotation.z = s * 0.03;
+  } else {
+    const sway = Math.sin(t * 1.4) * 0.12;
+    armRight.rotation.x =  sway; armLeft.rotation.x = -sway;
+    legRight.rotation.x = 0; legLeft.rotation.x = 0;
+    robot.position.y = 0; robot.rotation.z = 0;
+  }
 
   controls.update();
   renderer.render(scene, camera);

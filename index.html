@@ -6,15 +6,48 @@
   <title>Codernaught</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0d0d14; overflow: hidden; font-family: monospace; }
+    body { background: #0d0d14; overflow: hidden; font-family: monospace; color: #cfcfe0; }
     canvas { display: block; }
     #info {
       position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
       color: #888; font-size: 12px; text-align: center; pointer-events: none;
     }
+    #panel {
+      position: absolute; top: 16px; left: 16px;
+      background: rgba(20,20,30,0.82); border: 1px solid #2a2a3c; border-radius: 10px;
+      padding: 14px 16px; font-size: 13px; min-width: 190px; backdrop-filter: blur(6px);
+      user-select: none;
+    }
+    #panel h1 { font-size: 13px; letter-spacing: 1px; color: #9966ff; margin-bottom: 10px; font-weight: 700; }
+    #panel label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0; }
+    #panel select, #panel input[type=range] { accent-color: #9966ff; }
+    #panel .row { display: flex; align-items: center; justify-content: space-between; margin: 9px 0; }
+    #panel select { background: #15151f; color: #cfcfe0; border: 1px solid #333; border-radius: 5px; padding: 3px 6px; }
+    #panel .toggle { cursor: pointer; }
+    #panel input[type=range] { width: 96px; }
+    #panel .val { color: #9966ff; min-width: 30px; text-align: right; }
   </style>
 </head>
 <body>
+  <div id="panel">
+    <h1>CODERNAUGHT</h1>
+    <label class="toggle">Render
+      <select id="renderMode">
+        <option value="flat">Flat</option>
+        <option value="lit">Lit</option>
+      </select>
+    </label>
+    <label class="toggle">Shadows
+      <input type="checkbox" id="shadows" />
+    </label>
+    <label class="toggle">Walk
+      <input type="checkbox" id="walk" checked />
+    </label>
+    <div class="row">Speed
+      <input type="range" id="speed" min="0.5" max="10" step="0.1" value="5" />
+      <span class="val" id="speedVal">5.0</span>
+    </div>
+  </div>
   <div id="info">drag to orbit · scroll to zoom</div>
   <script type="module" src="/main.js"></script>
 </body>
