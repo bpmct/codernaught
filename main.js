@@ -7,6 +7,7 @@ const ui = {
   shadows: false,
   walk: true,
   speed: 5.0,
+  light: 0.55,      // master light multiplier (lit mode)
 };
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
@@ -140,12 +141,13 @@ function applyRenderMode() {
   const lit = ui.render === 'lit';
   for (const m of allMeshes) m.material = matFor(m.userData.hex);
 
-  // Lit lights at full strength; flat mode uses a single bright ambient so colors stay pure.
-  hemi.intensity = lit ? 0.9  : 0.0;
-  key.intensity  = lit ? 1.5  : 0.0;
-  fill.intensity = lit ? 1.1  : 0.0;
-  rim.intensity  = lit ? 0.6  : 0.0;
-  amb.intensity  = lit ? 0.25 : 1.0;   // flat: full flat ambient (MeshBasic ignores it anyway)
+  // Lit lights scaled by the master Light dial; flat mode uses pure colors.
+  const L = ui.light;
+  hemi.intensity = lit ? 0.9 * L : 0.0;
+  key.intensity  = lit ? 1.5 * L : 0.0;
+  fill.intensity = lit ? 1.1 * L : 0.0;
+  rim.intensity  = lit ? 0.6 * L : 0.0;
+  amb.intensity  = lit ? 0.4 * L : 1.0;
 
   renderer.toneMapping = lit ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
   renderer.toneMappingExposure = 1.3;
@@ -153,6 +155,13 @@ function applyRenderMode() {
   applyShadows();
   ground.visible = lit;
   grid.visible = lit;
+}
+
+function applyLight() {
+  if (ui.render !== 'lit') return;
+  const L = ui.light;
+  hemi.intensity = 0.9 * L; key.intensity = 1.5 * L;
+  fill.intensity = 1.1 * L; rim.intensity = 0.6 * L; amb.intensity = 0.4 * L;
 }
 
 function applyShadows() {
@@ -163,22 +172,33 @@ function applyShadows() {
   renderer.shadowMap.needsUpdate = true;
 }
 
+// ── Embed mode: ?embed=1 hides chrome for clean iframe use ────────────────────
+const EMBED = new URLSearchParams(location.search).get('embed') === '1';
+if (EMBED) {
+  const p = document.getElementById('panel'); if (p) p.style.display = 'none';
+  const inf = document.getElementById('info'); if (inf) inf.style.display = 'none';
+}
+
 // ── UI wiring ─────────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 $('renderMode').value = ui.render;
 $('shadows').checked = ui.shadows;
 $('walk').checked = ui.walk;
 $('speed').value = ui.speed; $('speedVal').textContent = ui.speed.toFixed(1);
+$('light').value = ui.light; $('lightVal').textContent = ui.light.toFixed(2);
 $('shadows').disabled = ui.render !== 'lit';
+$('light').disabled = ui.render !== 'lit';
 
 $('renderMode').addEventListener('change', e => {
   ui.render = e.target.value;
   $('shadows').disabled = ui.render !== 'lit';
+  $('light').disabled = ui.render !== 'lit';
   applyRenderMode();
 });
 $('shadows').addEventListener('change', e => { ui.shadows = e.target.checked; applyShadows(); });
 $('walk').addEventListener('change', e => { ui.walk = e.target.checked; });
 $('speed').addEventListener('input', e => { ui.speed = parseFloat(e.target.value); $('speedVal').textContent = ui.speed.toFixed(1); });
+$('light').addEventListener('input', e => { ui.light = parseFloat(e.target.value); $('lightVal').textContent = ui.light.toFixed(2); applyLight(); });
 
 applyRenderMode();
 
