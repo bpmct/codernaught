@@ -6,7 +6,7 @@ The Coder mascot robot — a 3D-printable model **and** an embeddable, walking
 **[▶ Live viewer](https://bpmct.github.io/codernaught/)** ·
 **[Embed &amp; download](https://bpmct.github.io/codernaught/embed.html)**
 
-- 3D-printable model (`Single_Coder_Bot.3mf`) by [@tracyjohnson](https://github.com/tracyjohnson)
+- 3D-printable model (`Single_Coder_Bot.3mf`) by [@tracyjohnsonux](https://github.com/tracyjohnsonux)
 - Web animation, rigging, and embeds generated from that exact `.3mf` — same
   geometry, same filament colors, real joints.
 
@@ -74,7 +74,7 @@ python3 skills/threemf-geometry/scripts/build_glb.py           # -> public/coder
 
 ## Credits
 
-- **3D-printable model:** [@tracyjohnson](https://github.com/tracyjohnson)
+- **3D-printable model:** [@tracyjohnsonux](https://github.com/tracyjohnsonux)
 - **Web animation / rigging / embeds:** built with an AI coding agent
 - **License:** [MIT](LICENSE)
 
