@@ -3,6 +3,10 @@
 The Coder mascot robot — a 3D-printable model **and** an embeddable, walking
 [Three.js](https://threejs.org) animation built straight from the print geometry.
 
+<p align="center">
+  <img src="public/2d/codernaught-walk3d.gif" alt="Codernaught walking" height="260" />
+</p>
+
 **[▶ Live viewer](https://bpmct.github.io/codernaught/)** ·
 **[Embed &amp; download](https://bpmct.github.io/codernaught/embed.html)**
 
@@ -40,6 +44,9 @@ The Coder mascot robot — a 3D-printable model **and** an embeddable, walking
 <model-viewer src="https://bpmct.github.io/codernaught/codernaught.glb"
   autoplay animation-name="Walk" camera-controls style="width:400px;height:400px"></model-viewer>
 ```
+
+**Google Slides / Docs / Notion** — download the transparent looping
+[`codernaught-walk3d.gif`](public/2d/codernaught-walk3d.gif) and paste it straight in.
 
 ## Run locally
 
