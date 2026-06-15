@@ -28,9 +28,11 @@ controls.maxDistance = 300;
 controls.update();
 
 // ── Lighting ──────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+// Hemisphere gives even sky/ground fill so neither side goes fully dark.
+scene.add(new THREE.HemisphereLight(0xdde6ff, 0x202028, 0.9));
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
 
-const key = new THREE.DirectionalLight(0xfff4e0, 2.0);
+const key = new THREE.DirectionalLight(0xfff4e0, 1.5);
 key.position.set(25, 50, 40);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
@@ -38,14 +40,16 @@ key.shadow.camera.near = 1;
 key.shadow.camera.far = 200;
 key.shadow.camera.top = key.shadow.camera.right = 60;
 key.shadow.camera.bottom = key.shadow.camera.left = -60;
+key.shadow.bias = -0.0005;
 scene.add(key);
 
-const fill = new THREE.DirectionalLight(0xb0c8ff, 0.7);
-fill.position.set(-30, 20, -15);
+// Strong fill from the opposite side to balance the dark half.
+const fill = new THREE.DirectionalLight(0xc8d8ff, 1.1);
+fill.position.set(-35, 25, 20);
 scene.add(fill);
 
-const rim = new THREE.DirectionalLight(0x8844ff, 0.5);
-rim.position.set(0, -5, -40);
+const rim = new THREE.DirectionalLight(0x9966ff, 0.6);
+rim.position.set(0, 10, -45);
 scene.add(rim);
 
 // Ground
@@ -164,7 +168,7 @@ function animate() {
   const t = clock.getElapsedTime();
 
   // Arms hinge forward/back around the X axis (the shoulder pivot).
-  const swing = Math.sin(t * 1.4) * 0.35;     // radians
+  const swing = Math.sin(t * 1.4) * 0.12;     // radians (gentle)
   armRight.rotation.x =  swing;
   armLeft.rotation.x  = -swing;
 
