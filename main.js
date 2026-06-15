@@ -77,7 +77,7 @@ function matFor(hex) {
 }
 
 // ── Load mesh data ────────────────────────────────────────────────────────────
-const data = await fetch('/codernaught_meshes.json').then(r => r.json());
+const data = await fetch(import.meta.env.BASE_URL + 'codernaught_meshes.json').then(r => r.json());
 const { meshes, pivots, bounds } = data;
 
 const modelHeight = bounds.max[1] - bounds.min[1];
