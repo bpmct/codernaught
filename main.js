@@ -202,6 +202,8 @@ $('light').addEventListener('input', e => { ui.light = parseFloat(e.target.value
 
 applyRenderMode();
 
+const jb = document.getElementById('jumpBtn'); if (jb) jb.addEventListener('click', () => triggerJump());
+
 // ── Animation: idle + walk cycle ──────────────────────────────────────────────
 const clock = new THREE.Clock();
 let phase = 0;
@@ -212,25 +214,49 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// jump state
+let jumpT = -1;                       // -1 = grounded
+function triggerJump(){ if (jumpT < 0) jumpT = 0; }
+window.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); triggerJump(); } });
+renderer.domElement.addEventListener('dblclick', triggerJump);
+
+let yaw = 0;                          // body facing (radians); 0 = facing camera
 function animate() {
   requestAnimationFrame(animate);
-  const dt = clock.getDelta();
+  const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
+
+  // jump arc (independent of walk)
+  let jumpY = 0, tuck = 0;
+  if (jumpT >= 0) {
+    jumpT += dt * 1.7;
+    const j = Math.sin(Math.PI * Math.min(jumpT, 1));   // 0..1..0
+    jumpY = j * 7.5;
+    tuck = j;                                           // legs tuck at apex
+    if (jumpT >= 1) jumpT = -1;
+  }
 
   if (ui.walk) {
     phase += dt * ui.speed;
     const s = Math.sin(phase);
-    legRight.rotation.x =  s * 0.5;
-    legLeft.rotation.x  = -s * 0.5;
-    armRight.rotation.x = -s * 0.35;
-    armLeft.rotation.x  =  s * 0.35;
-    robot.position.y = Math.abs(Math.sin(phase)) * 0.6;
+    legRight.rotation.x =  s * 0.5 + tuck * 0.5;
+    legLeft.rotation.x  = -s * 0.5 + tuck * 0.5;
+    armRight.rotation.x = -s * 0.35 - tuck * 0.6;
+    armLeft.rotation.x  =  s * 0.35 - tuck * 0.6;
+    // solid body rotation: slowly turn so you see the walk in 3D (full spin)
+    yaw += dt * 0.6;
+    robot.rotation.y = yaw;
+    robot.position.y = Math.abs(s) * 0.6 + jumpY;
     robot.rotation.z = s * 0.03;
   } else {
-    const sway = Math.sin(t * 1.4) * 0.12;
-    armRight.rotation.x =  sway; armLeft.rotation.x = -sway;
-    legRight.rotation.x = 0; legLeft.rotation.x = 0;
-    robot.position.y = 0; robot.rotation.z = 0;
+    // idle: ease back to facing the camera (front)
+    yaw += (0 - yaw) * Math.min(dt * 3, 1);
+    robot.rotation.y = yaw;
+    const sway = Math.sin(t * 1.4) * 0.10;
+    armRight.rotation.x =  sway - tuck * 0.6; armLeft.rotation.x = -sway - tuck * 0.6;
+    legRight.rotation.x = tuck * 0.5; legLeft.rotation.x = tuck * 0.5;
+    robot.position.y = Math.sin(t*2) * 0.3 + jumpY;
+    robot.rotation.z = 0;
   }
 
   controls.update();

@@ -9,7 +9,6 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         embed: resolve(__dirname, 'embed.html'),
-        twod: resolve(__dirname, '2d/index.html'),
       },
     },
   },

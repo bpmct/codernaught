@@ -1,79 +1,85 @@
 /**
- * Codernaught — embeddable Web Component.
+ * Codernaught — embeddable Web Component (self-contained Three.js renderer).
  *
- * Usage (drop into any HTML page):
  *   <script type="module" src="https://bpmct.github.io/codernaught/codernaught-embed.js"></script>
- *   <codernaught-bot walk speed="1" camera-orbit="0deg 80deg 110%"></codernaught-bot>
+ *   <codernaught-bot walk style="width:360px;height:360px"></codernaught-bot>
+ *
+ * Loads the rigged codernaught.glb and plays its "Walk" clip with a slow turntable
+ * rotation, front-facing idle, and lighting. No model-viewer dependency.
  *
  * Attributes:
- *   src          URL to codernaught.glb (defaults to the GH Pages copy)
- *   walk         present = autoplay the walk animation
- *   speed        animation speed multiplier (default 1)
- *   background   CSS background (default transparent)
- *   auto-rotate  present = slowly spin the camera
- *   no-controls  present = disable user orbit/zoom
- *
- * Internally wraps Google's <model-viewer> (loaded on demand). The canonical asset
- * is the .glb — you can also use it directly anywhere that accepts glTF.
+ *   src        URL to codernaught.glb (default: alongside this script)
+ *   walk       present = play the walk animation + spin; absent = idle, facing front
+ *   spin       degrees/sec turntable while walking (default 35)
+ *   bg         background CSS color (default transparent)
+ *   no-controls present = disable orbit/zoom
  */
-const MV_SRC = 'https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js';
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { GLTFLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
 const DEFAULT_GLB = new URL('./codernaught.glb', import.meta.url).href;
 
-let mvLoading;
-function ensureModelViewer() {
-  if (window.customElements?.get('model-viewer')) return Promise.resolve();
-  if (!mvLoading) {
-    mvLoading = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.type = 'module'; s.src = MV_SRC;
-      s.onload = resolve; s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  }
-  return mvLoading;
-}
-
 class CodernaughtBot extends HTMLElement {
-  static get observedAttributes() { return ['src', 'walk', 'speed', 'background', 'auto-rotate', 'no-controls']; }
-
   connectedCallback() {
-    const shadow = this.attachShadow({ mode: 'open' });
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'width:100%;height:100%;min-height:240px;display:block';
-    shadow.appendChild(wrap);
+    const root = this.attachShadow({ mode: 'open' });
+    const host = document.createElement('div');
+    host.style.cssText = `width:100%;height:100%;min-height:220px;background:${this.getAttribute('bg') || 'transparent'}`;
+    root.appendChild(host);
 
-    ensureModelViewer().then(() => {
-      const mv = document.createElement('model-viewer');
-      mv.setAttribute('src', this.getAttribute('src') || DEFAULT_GLB);
-      mv.setAttribute('camera-controls', this.hasAttribute('no-controls') ? 'false' : 'true');
-      mv.setAttribute('interaction-prompt', 'none');
-      mv.setAttribute('shadow-intensity', '0.6');
-      mv.setAttribute('exposure', '0.9');
-      mv.setAttribute('environment-image', 'neutral');
-      mv.setAttribute('camera-orbit', this.getAttribute('camera-orbit') || '15deg 80deg 110%');
-      if (this.hasAttribute('walk')) {
-        mv.setAttribute('autoplay', '');
-        mv.setAttribute('animation-name', 'Walk');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    host.appendChild(renderer.domElement);
+    renderer.domElement.style.cssText = 'width:100%;height:100%;display:block';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 1000);
+    camera.position.set(0, 12, 52);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 10, 0);
+    controls.enableDamping = true;
+    controls.enabled = !this.hasAttribute('no-controls');
+    controls.enableZoom = !this.hasAttribute('no-controls');
+
+    scene.add(new THREE.HemisphereLight(0xdde6ff, 0x202028, 0.85));
+    const key = new THREE.DirectionalLight(0xfff4e0, 1.2); key.position.set(20, 40, 30); scene.add(key);
+    const fill = new THREE.DirectionalLight(0xc8d8ff, 0.7); fill.position.set(-25, 20, 15); scene.add(fill);
+
+    const resize = () => {
+      const w = this.clientWidth || 320, h = this.clientHeight || 320;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+    };
+    new ResizeObserver(resize).observe(this);
+    resize();
+
+    const walk = this.hasAttribute('walk');
+    const spin = (parseFloat(this.getAttribute('spin')) || 35) * Math.PI / 180;
+    let mixer, model, yaw = 0;
+    const clock = new THREE.Clock();
+
+    new GLTFLoader().load(this.getAttribute('src') || DEFAULT_GLB, (g) => {
+      model = g.scene;
+      scene.add(model);
+      if (walk && g.animations.length) {
+        mixer = new THREE.AnimationMixer(model);
+        mixer.clipAction(g.animations[0]).play();
       }
-      if (this.hasAttribute('auto-rotate')) mv.setAttribute('auto-rotate', '');
-      mv.style.cssText = `width:100%;height:100%;background:${this.getAttribute('background') || 'transparent'}`;
-
-      const sp = parseFloat(this.getAttribute('speed') || '1');
-      mv.addEventListener('load', () => { try { mv.timeScale = sp; } catch (e) {} });
-
-      wrap.appendChild(mv);
-      this._mv = mv;
     });
-  }
 
-  attributeChangedCallback(name, _old, val) {
-    if (!this._mv) return;
-    if (name === 'speed') { try { this._mv.timeScale = parseFloat(val || '1'); } catch (e) {} }
-    if (name === 'walk') {
-      if (this.hasAttribute('walk')) { this._mv.setAttribute('animation-name', 'Walk'); this._mv.play(); }
-      else this._mv.pause();
-    }
+    const loop = () => {
+      requestAnimationFrame(loop);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      if (mixer) mixer.update(dt);
+      if (model) {
+        if (walk) { yaw += spin * dt; model.rotation.y = yaw; }
+        else { yaw += (0 - yaw) * Math.min(dt * 3, 1); model.rotation.y = yaw; }
+      }
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    loop();
   }
 }
-
 customElements.define('codernaught-bot', CodernaughtBot);
