@@ -7,6 +7,7 @@ const ui = {
   shadows: false,
   walk: true,
   spin: false,
+  fly: false,
   speed: 5.0,
   light: 0.55,      // master light multiplier (lit mode)
 };
@@ -123,8 +124,11 @@ const armLeft  = new THREE.Group(); armLeft.position.copy(lArmPivot);  robot.add
 const legRight = new THREE.Group(); legRight.position.copy(rLegPivot); robot.add(legRight);
 const legLeft  = new THREE.Group(); legLeft.position.copy(lLegPivot);  robot.add(legLeft);
 
-const TARGET = { body: bodyGroup, arm_right: armRight, arm_left: armLeft, leg_right: legRight, leg_left: legLeft };
-const PIVOT  = { body: new THREE.Vector3(0,0,0), arm_right: rArmPivot, arm_left: lArmPivot, leg_right: rLegPivot, leg_left: lLegPivot };
+const TARGET = { body: bodyGroup, arm_right: armRight, arm_left: armLeft, leg_right: legRight, leg_left: legLeft,
+                 booster_right: legRight, booster_left: legLeft };
+const PIVOT  = { body: new THREE.Vector3(0,0,0), arm_right: rArmPivot, arm_left: lArmPivot, leg_right: rLegPivot, leg_left: lLegPivot,
+                 booster_right: rLegPivot, booster_left: lLegPivot };
+const boosterMeshes = [];
 
 const allMeshes = [];
 for (const part of meshes) {
@@ -134,6 +138,7 @@ for (const part of meshes) {
   const m = new THREE.Mesh(makeGeo(localVerts, part.triangles), matFor(part.color));
   m.userData.hex = part.color;
   allMeshes.push(m);
+  if (part.group.startsWith('booster')) { m.visible = false; boosterMeshes.push(m); }
   (TARGET[part.group] || bodyGroup).add(m);
 }
 
@@ -186,6 +191,7 @@ $('renderMode').value = ui.render;
 $('shadows').checked = ui.shadows;
 $('walk').checked = ui.walk;
 if ($('spin')) $('spin').checked = ui.spin;
+if ($('fly')) $('fly').checked = ui.fly;
 $('speed').value = ui.speed; $('speedVal').textContent = ui.speed.toFixed(1);
 $('light').value = ui.light; $('lightVal').textContent = ui.light.toFixed(2);
 $('shadows').disabled = ui.render !== 'lit';
@@ -200,6 +206,7 @@ $('renderMode').addEventListener('change', e => {
 $('shadows').addEventListener('change', e => { ui.shadows = e.target.checked; applyShadows(); });
 $('walk').addEventListener('change', e => { ui.walk = e.target.checked; });
 $('spin').addEventListener('change', e => { ui.spin = e.target.checked; });
+$('fly').addEventListener('change', e => { ui.fly = e.target.checked; boosterMeshes.forEach(m => m.visible = ui.fly); });
 $('speed').addEventListener('input', e => { ui.speed = parseFloat(e.target.value); $('speedVal').textContent = ui.speed.toFixed(1); });
 $('light').addEventListener('input', e => { ui.light = parseFloat(e.target.value); $('lightVal').textContent = ui.light.toFixed(2); applyLight(); });
 
@@ -239,7 +246,19 @@ function animate() {
     if (jumpT >= 1) jumpT = -1;
   }
 
-  if (ui.walk) {
+  if (ui.fly) {
+    // FLY: boosters firing, lift off, legs together pointing down, arms back, hover bob.
+    const hover = 9 + Math.sin(t * 2.2) * 1.2;
+    robot.position.y = hover + jumpY;
+    yaw += (0 - yaw) * Math.min(dt * 3, 1);
+    robot.rotation.y = yaw;
+    robot.rotation.z = Math.sin(t * 1.6) * 0.04;
+    legRight.rotation.x = 0.12; legLeft.rotation.x = 0.12;   // legs straight-ish, slight back
+    armRight.rotation.x = -0.5; armLeft.rotation.x = -0.5;   // arms swept back
+    // flicker the booster flame a touch by scaling Y of booster meshes
+    const flick = 0.85 + Math.random() * 0.3;
+    boosterMeshes.forEach(m => { m.scale.y = flick; });
+  } else if (ui.walk) {
     phase += dt * ui.speed;
     const s = Math.sin(phase);
     legRight.rotation.x =  s * 0.5 + tuck * 0.5;

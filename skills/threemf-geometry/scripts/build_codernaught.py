@@ -55,6 +55,57 @@ def color_of(pid):
     return EXT_COLORS.get(PART_EXT.get(pid, '1'), '#888888')
 
 
+
+JET_COLORS = {'1': '#6E6A6B', '2': '#FF7A1A', '3': '#FFC21A'}   # body gray, flame orange, inner-flame yellow
+
+def add_boosters(jets_path, meshes):
+    """Load one jet from Jets.3mf, orient flame-down, place under each foot.
+    Tagged group 'booster_left'/'booster_right' (hidden until the fly action).
+    Returns pivot dict (the foot-bottom attach points)."""
+    z = zipfile.ZipFile(jets_path)
+    jo = {}
+    for n in z.namelist():
+        if n.startswith('3D/Objects/'):
+            jo.update(parse_objects(z.read(n).decode()))
+    jroot = ET.fromstring(z.read('3D/3dmodel.model').decode())
+    jcomps = {}
+    for ob in jroot.findall(f'.//{{{NS}}}object'):
+        cs = [{'id': c.get('objectid'),
+               'tf': parse_transform(c.get('transform', '1 0 0 0 1 0 0 0 1 0 0 0'))}
+              for c in ob.findall(f'.//{{{NS}}}component')]
+        if cs:
+            jcomps[ob.get('id')] = cs
+    # object '4' = one jet (parts 1 body, 2/3 flame). Assemble in local space.
+    parts = []
+    for c in jcomps['4']:
+        v = apply_tf(jo[c['id']]['vertices'], c['tf'])
+        parts.append((c['id'], v, jo[c['id']]['triangles']))
+    allv = np.vstack([v for _, v, _ in parts])
+    # jet vertical axis is local Z; flame at +Z. Rotate Rx(90): +Z -> -Y (down).
+    def Rx(d):
+        r = np.radians(d); c, s = np.cos(r), np.sin(r)
+        m = np.eye(4); m[1,1]=c; m[1,2]=-s; m[2,1]=s; m[2,2]=c; return m
+    R = Rx(90)
+    SCALE = 0.42                                       # jet lateral ~16.7mm -> ~7mm (foot width)
+    # Build a SHARED transform: orient+scale the whole jet, then center its X/Z and
+    # put its top at y=0, so every part shares the same offset (stays assembled).
+    oriented_all = apply_tf(allv, R) * SCALE
+    off = np.array([oriented_all[:,0].mean(), oriented_all[:,1].max(), oriented_all[:,2].mean()])
+    foot = {'left': np.array([-3.51, -22.78, -1.11]), 'right': np.array([4.62, -22.78, -1.11])}
+    pivots = {}
+    for side in ('left', 'right'):
+        grp = f'booster_{side}'
+        fc = foot[side]
+        for pid, v, tris in parts:
+            vv = apply_tf(v, R) * SCALE - off          # orient+scale, shared center (X/Z) & top at y=0
+            vv = vv + fc                               # drop to under the foot
+            meshes.append({'part_id': f'jet{pid}_{side}', 'group': grp,
+                           'color': JET_COLORS.get(pid, '#888'),
+                           'vertices': vv.tolist(), 'triangles': tris})
+        pivots[grp] = fc.tolist()                     # attach pivot = foot bottom
+    return pivots
+
+
 def main():
     z = zipfile.ZipFile(SRC)
     o5 = parse_objects(z.read('3D/Objects/object_5.model').decode())
@@ -129,19 +180,26 @@ def main():
     add_arm(trans(r_off), False, 'arm_right')
     add_arm(trans(l_off), True, 'arm_left')
 
+    # ── Boosters (Jets.3mf) — one jet tucked under each foot, flame pointing down ──
+    jets_path = os.path.join(os.path.dirname(SRC), 'Jets.3mf')
+    booster_pivots = {}
+    if os.path.exists(jets_path):
+        booster_pivots = add_boosters(jets_path, meshes)
+
     allv = np.array([v for m in meshes for v in m['vertices']])
     out = {
         'meshes': meshes,
         'pivots': {
             'arm_right': SOCKET_R.tolist(), 'arm_left': SOCKET_L.tolist(),
             'leg_left': left_hip.tolist(), 'leg_right': right_hip.tolist(),
+            **booster_pivots,
         },
         'bounds': {'min': allv.min(axis=0).tolist(), 'max': allv.max(axis=0).tolist()},
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(out, open(OUT, 'w'))
     print(f"Wrote {len(meshes)} meshes -> {OUT}")
-    for g in ['torso', 'leg_left', 'leg_right', 'arm_left', 'arm_right']:
+    for g in ['torso', 'leg_left', 'leg_right', 'arm_left', 'arm_right', 'booster_left', 'booster_right']:
         n = sum(1 for m in meshes if m['group'] == g)
         print(f"  {g}: {n} meshes")
 
