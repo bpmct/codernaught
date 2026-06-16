@@ -43,9 +43,12 @@ SLICE = {'2'}                       # the only crossing part to cut (gray shell)
 
 # Arm mating (from circle-fit detection)
 ARM_JOINT = np.array([-4.132, 5.876, 0.0])   # arm shoulder circle center (local, axis Z)
-SOCKET_NUDGE = 2.9                            # arms seated ~1.2mm (shell just kisses wall, no deep clip)
-SOCKET_R = np.array([9.42 + SOCKET_NUDGE, 3.02, -0.75])
-SOCKET_L = np.array([-(9.42 + SOCKET_NUDGE), 3.02, -0.75])
+# Seat so the arm's shoulder shell face sits FLUSH against the body wall (X=10.38),
+# with a ~1mm overlap so there's never a gap. Value derived from geometry: the
+# oriented shell inner face must land at the wall (see analysis); plug center -> 13.52.
+# Pull in 1.0mm (12.52) so the shell overlaps the wall by ~1mm (flush, no gap, no deep bury).
+SOCKET_R = np.array([12.52, 3.021, -0.742])
+SOCKET_L = np.array([-12.52, 3.021, -0.742])
 
 
 def color_of(pid):
