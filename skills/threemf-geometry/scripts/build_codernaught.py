@@ -43,7 +43,7 @@ SLICE = {'2'}                       # the only crossing part to cut (gray shell)
 
 # Arm mating (from circle-fit detection)
 ARM_JOINT = np.array([-4.132, 5.876, 0.0])   # arm shoulder circle center (local, axis Z)
-SOCKET_NUDGE = 0.6                            # seated but not sunk-in (arms sit naturally at sides)
+SOCKET_NUDGE = 2.9                            # arms seated ~1.2mm (shell just kisses wall, no deep clip)
 SOCKET_R = np.array([9.42 + SOCKET_NUDGE, 3.02, -0.75])
 SOCKET_L = np.array([-(9.42 + SOCKET_NUDGE), 3.02, -0.75])
 
